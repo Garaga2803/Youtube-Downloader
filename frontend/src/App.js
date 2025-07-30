@@ -1,9 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import "./App.css";
 
 function App() {
   const [url, setUrl] = useState("");
-  const [quality, setQuality] = useState("best");
+  const [quality, setQuality] = useState("137+140"); // default to 1080p
   const [logs, setLogs] = useState([]);
   const [downloading, setDownloading] = useState(false);
   const [downloadLink, setDownloadLink] = useState("");
@@ -50,15 +50,16 @@ function App() {
   };
 
   const qualityOptions = [
-    { label: "Best", value: "best" },
-    { label: "8K", value: "8k" },
-    { label: "4K", value: "4k" },
-    { label: "1440p", value: "1440p" },
-    { label: "1080p", value: "1080p" },
-    { label: "720p", value: "720p" },
-    { label: "480p", value: "480p" },
-    { label: "360p", value: "360p" },
-    { label: "240p", value: "240p" }
+    { label: "Best (Auto)", value: "best" },
+    { label: "8K", value: "315+140" },     // AV1 video + audio
+    { label: "4K", value: "313+140" },     // VP9 video + audio
+    { label: "1440p", value: "271+140" },
+    { label: "1080p", value: "137+140" },
+    { label: "720p", value: "136+140" },
+    { label: "480p", value: "135+140" },
+    { label: "360p", value: "134+140" },
+    { label: "240p", value: "133+140" },
+    { label: "144p", value: "160+140" }
   ];
 
   return (
