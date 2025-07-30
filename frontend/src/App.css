@@ -1,14 +1,39 @@
-body {
-  font-family: 'Segoe UI', sans-serif;
-  background-color: #f5f5f5;
-  padding: 20px;
-}
-
 .app {
   max-width: 600px;
   margin: auto;
-  background-color: white;
+  text-align: center;
   padding: 20px;
-  border-radius: 12px;
-  box-shadow: 0 0 10px rgba(0,0,0,0.1);
+}
+
+input, select {
+  width: 90%;
+  margin: 10px 0;
+  padding: 10px;
+  font-size: 16px;
+}
+
+button {
+  padding: 10px 20px;
+  margin-top: 10px;
+  font-size: 16px;
+}
+
+.log-section {
+  margin-top: 20px;
+  text-align: left;
+  background: #f1f1f1;
+  padding: 10px;
+  max-height: 300px;
+  overflow-y: auto;
+  border-radius: 6px;
+}
+
+.log-line {
+  margin-bottom: 5px;
+  font-family: monospace;
+}
+
+.download-link {
+  margin-top: 20px;
+  font-size: 18px;
 }
