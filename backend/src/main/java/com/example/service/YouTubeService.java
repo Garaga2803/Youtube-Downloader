@@ -1,104 +1,90 @@
 package com.example.service;
 
-import java.io.BufferedReader;
-import java.io.File;
-import java.io.InputStreamReader;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
-
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
+
+import java.io.*;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.UUID;
+import java.util.regex.*;
 
 @Service
 public class YouTubeService {
 
-    private static final String DOWNLOAD_PATH = "D:/Movies/%(title)s.%(ext)s";
+    private final Map<String, String> qualityFormatMap = new HashMap<>();
 
-    public void downloadWithLiveLogs(String url, String quality, SseEmitter emitter) {
+    public YouTubeService() {
+        qualityFormatMap.put("8k", "bestvideo[height<=4320]+bestaudio/best");
+        qualityFormatMap.put("4k", "bestvideo[height<=2160]+bestaudio/best");
+        qualityFormatMap.put("1440p", "bestvideo[height<=1440]+bestaudio/best");
+        qualityFormatMap.put("1080p", "bestvideo[height<=1080]+bestaudio/best");
+        qualityFormatMap.put("720p", "bestvideo[height<=720]+bestaudio/best");
+        qualityFormatMap.put("480p", "bestvideo[height<=480]+bestaudio/best");
+        qualityFormatMap.put("360p", "bestvideo[height<=360]+bestaudio/best");
+        qualityFormatMap.put("240p", "bestvideo[height<=240]+bestaudio/best");
+        qualityFormatMap.put("best", "best"); // fallback
+    }
+
+    public SseEmitter downloadVideoWithProgress(String url, String formatLabel) {
+        SseEmitter emitter = new SseEmitter(0L); // No timeout
         new Thread(() -> {
+            String fileName = "video_" + UUID.randomUUID() + ".mp4";
+
+            // Use mapped format or fallback to "best"
+            String format = qualityFormatMap.getOrDefault(formatLabel.toLowerCase(), "best");
+
+            ProcessBuilder builder = new ProcessBuilder(
+                    "yt-dlp",
+                    "-f", format,
+                    "-o", "downloads/" + fileName,
+                    "--newline",
+                    url
+            );
+
+            builder.redirectErrorStream(true);
+
             try {
-                // Create directory if needed
-                File downloadDir = new File("D:/Movies");
-                if (!downloadDir.exists()) downloadDir.mkdirs();
-
-                // 🔍 Step 1: Get size of the format using `yt-dlp -F`
-                String formatSelector = getFormatSelector(quality);
-
-                ProcessBuilder probePb = new ProcessBuilder("yt-dlp", "-F", url);
-                Process probeProcess = probePb.start();
-
-                BufferedReader probeReader = new BufferedReader(new InputStreamReader(probeProcess.getInputStream()));
-                String probeLine;
-                String sizeInfo = null;
-
-                Pattern pattern = Pattern.compile("^(\\d+).*?\\b(\\d{3,4}x\\d{3,4})\\b.*?\\b(\\d+(\\.\\d+)?[KM]iB)\\b");
-                while ((probeLine = probeReader.readLine()) != null) {
-                    // e.g., 137          mp4        1920x1080   1080p  500.2MiB ...
-                    if (probeLine.contains("video") && probeLine.contains("audio")) continue;
-                    Matcher matcher = pattern.matcher(probeLine);
-                    if (matcher.find()) {
-                        if (probeLine.toLowerCase().contains(quality.toLowerCase())) {
-                            sizeInfo = matcher.group(3);
-                            emitter.send("SIZE::" + quality.toUpperCase() + "::" + sizeInfo);
-                            break;
-                        }
-                    }
-                }
-
-                // 🔽 Step 2: Download with live progress
-                ProcessBuilder pb = new ProcessBuilder(
-                        "yt-dlp",
-                        "-f", formatSelector,
-                        "-o", DOWNLOAD_PATH,
-                        "--newline",
-                        url
-                );
-
-                pb.redirectErrorStream(true);
-                Process process = pb.start();
-
+                Process process = builder.start();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 String line;
-                while ((line = reader.readLine()) != null) {
-                   if (line.startsWith("[download]")) {
-    Pattern p = Pattern.compile("(\\d+\\.\\d+)%\\s+of\\s+(.*?)\\s+at\\s+(.*?)\\s+ETA\\s+(.*)");
-    Matcher m = p.matcher(line);
-    if (m.find()) {
-        String percent = m.group(1);
-        String size = m.group(2);
-        String speed = m.group(3);
-        String eta = m.group(4);
+                Pattern progressPattern = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)% of ~?(\\d+\\.\\d+)?\\w* at ([\\d\\.\\w/]+) ETA ([\\d:\\.]+)");
 
-        emitter.send("PROGRESS::" + percent + "::" + size + "::" + speed + "::" + eta);
-    }
-                   }
-else if (line.contains("Destination: ")) {
-                        emitter.send("📥 " + line.trim());
+                while ((line = reader.readLine()) != null) {
+                    System.out.println("yt-dlp: " + line);
+
+                    Matcher matcher = progressPattern.matcher(line);
+                    if (matcher.find()) {
+                        String progress = matcher.group(1);
+                        String totalSize = matcher.group(2) != null ? matcher.group(2) : "";
+                        String speed = matcher.group(3);
+                        String eta = matcher.group(4);
+
+                        String formatted = String.format("📥 %s%% downloaded (%s MB) at %s, ETA %s", progress, totalSize, speed, eta);
+                        emitter.send(SseEmitter.event().data(formatted));
                     }
                 }
 
                 int exitCode = process.waitFor();
-                emitter.send("✅ Download completed with exit code " + exitCode);
+                if (exitCode == 0) {
+                    emitter.send(SseEmitter.event().data("✅ Download completed. Ready to download file:" + fileName));
+                } else {
+                    emitter.send(SseEmitter.event().data("❌ Download failed with exit code: " + exitCode));
+                }
+
                 emitter.complete();
 
-            } catch (Exception e) {
+            } catch (IOException | InterruptedException e) {
+                e.printStackTrace();
                 try {
-                    emitter.send("❌ Error: " + e.getMessage());
-                } catch (Exception ignored) {}
+                    emitter.send(SseEmitter.event().data("❌ Error occurred: " + e.getMessage()));
+                } catch (IOException ex) {
+                    ex.printStackTrace();
+                }
                 emitter.completeWithError(e);
             }
         }).start();
-    }
 
-    private String getFormatSelector(String quality) {
-        return switch (quality.toLowerCase()) {
-            case "8k" -> "bestvideo[height=4320]+bestaudio";
-            case "4k" -> "bestvideo[height=2160]+bestaudio";
-            case "1080p" -> "bestvideo[height=1080]+bestaudio";
-            case "720p" -> "bestvideo[height=720]+bestaudio";
-            case "480p" -> "bestvideo[height=480]+bestaudio";
-            case "360p" -> "bestvideo[height=360]+bestaudio";
-            default -> "bestvideo+bestaudio";
-        };
+        return emitter;
     }
 }
