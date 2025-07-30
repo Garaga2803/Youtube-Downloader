@@ -1,129 +1,109 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
+import "./App.css";
 
 function App() {
   const [url, setUrl] = useState("");
   const [quality, setQuality] = useState("best");
   const [logs, setLogs] = useState([]);
-  const [progress, setProgress] = useState(null);
-  const [totalSizeMB, setTotalSizeMB] = useState(null);
   const [downloading, setDownloading] = useState(false);
+  const [downloadLink, setDownloadLink] = useState("");
 
-  const startDownload = () => {
+  const handleDownload = () => {
+    if (!url) return;
+
     setLogs([]);
-    setProgress(null);
-    setTotalSizeMB(null);
     setDownloading(true);
+    setDownloadLink("");
 
-   const eventSource = new EventSource(
-  `https://youtube-downloader-nhfx.onrender.com/api/youtube/download/stream?url=${encodeURIComponent(url)}&format=${quality}&t=${Date.now()}`
-);
+    const eventSource = new EventSource(
+      `https://youtube-downloader-nhfx.onrender.com/api/youtube/download/stream?url=${encodeURIComponent(
+        url
+      )}&format=${quality}&t=${Date.now()}`
+    );
 
+    eventSource.onmessage = (event) => {
+      const message = event.data;
 
-    eventSource.onmessage = (e) => {
-      const message = e.data;
+      setLogs((prevLogs) => [...prevLogs, message]);
 
-      if (message.startsWith("PROGRESS::")) {
-        const [, percentStr, size, speed, eta] = message.split("::");
-        const percent = parseFloat(percentStr);
-
-        let remaining = null;
-        if (totalSizeMB) {
-          const completedFraction = percent / 100;
-          const remainingMB = (1 - completedFraction) * totalSizeMB;
-          remaining = remainingMB.toFixed(1) + " MiB";
+      if (message.startsWith("✅ Download completed")) {
+        const fileName = message.split(":")[1]?.trim();
+        if (fileName) {
+          setDownloadLink(
+            `https://youtube-downloader-nhfx.onrender.com/api/youtube/download-file/${fileName}`
+          );
         }
-
-        setProgress({
-          percent: isNaN(percent) ? null : percent.toFixed(1) + "%",
-          size: size || "Calculating...",
-          speed: speed || "Calculating...",
-          eta: eta || "Calculating...",
-          remaining
-        });
-      } else if (message.startsWith("SIZE::")) {
-        const [, , size] = message.split("::");
-        const sizeValue = parseFloat(size.replace("MiB", "").trim());
-        setTotalSizeMB(sizeValue);
-        setLogs((prev) => [...prev, `🧾 Estimated Size: ${size}`]);
-      } else {
-        setLogs((prev) => [...prev, message]);
+        eventSource.close();
+        setDownloading(false);
+      } else if (message.startsWith("❌")) {
+        eventSource.close();
+        setDownloading(false);
       }
     };
 
-    eventSource.onerror = () => {
-      eventSource.close();
+    eventSource.onerror = (err) => {
+      console.error("SSE error:", err);
+      setLogs((prevLogs) => [...prevLogs, "❌ Error connecting to server"]);
       setDownloading(false);
+      eventSource.close();
     };
   };
 
+  const qualityOptions = [
+    { label: "Best", value: "best" },
+    { label: "8K", value: "8k" },
+    { label: "4K", value: "4k" },
+    { label: "1440p", value: "1440p" },
+    { label: "1080p", value: "1080p" },
+    { label: "720p", value: "720p" },
+    { label: "480p", value: "480p" },
+    { label: "360p", value: "360p" },
+    { label: "240p", value: "240p" }
+  ];
+
   return (
-    <div style={{ padding: "20px", fontFamily: "Segoe UI", background: "#f8f9fa", minHeight: "100vh" }}>
-      <h2 style={{ color: "#d63384" }}>🎬 YouTube Downloader</h2>
+    <div className="app">
+      <h2>🎬 YouTube Downloader</h2>
 
       <input
-        style={{ width: "60%", padding: "10px", margin: "10px 0", borderRadius: "6px", border: "1px solid #ccc" }}
         type="text"
-        placeholder="Enter YouTube URL"
         value={url}
         onChange={(e) => setUrl(e.target.value)}
+        placeholder="Enter YouTube URL"
+        disabled={downloading}
       />
 
       <select
         value={quality}
         onChange={(e) => setQuality(e.target.value)}
-        style={{ padding: "10px", marginLeft: "10px", borderRadius: "6px", border: "1px solid #ccc" }}
+        disabled={downloading}
       >
-        <option value="best">Best</option>
-        <option value="8k">8K</option>
-        <option value="4k">4K</option>
-        <option value="1080p">1080p</option>
-        <option value="720p">720p</option>
-        <option value="480p">480p</option>
-        <option value="360p">360p</option>
+        {qualityOptions.map((option) => (
+          <option key={option.value} value={option.value}>
+            {option.label}
+          </option>
+        ))}
       </select>
 
-      <button
-        onClick={startDownload}
-        disabled={downloading}
-        style={{
-          padding: "10px 20px",
-          marginLeft: "10px",
-          background: downloading ? "#6c757d" : "#198754",
-          color: "white",
-          border: "none",
-          borderRadius: "6px",
-          cursor: "pointer",
-        }}
-      >
+      <button onClick={handleDownload} disabled={downloading || !url}>
         {downloading ? "Downloading..." : "Start Download"}
       </button>
 
-      {progress && (
-        <div style={{ marginTop: "20px", padding: "15px", background: "#fff3cd", borderRadius: "8px" }}>
-          <h4 style={{ margin: 0, color: "#856404" }}>📊 Download Progress</h4>
-          <div>🔁 <strong style={{ color: "#0d6efd" }}>Progress:</strong> {progress.percent}</div>
-          <div>📦 <strong style={{ color: "#198754" }}>Downloaded:</strong> {progress.size}</div>
-          <div>🚀 <strong style={{ color: "#dc3545" }}>Speed:</strong> {progress.speed}/s</div>
-          <div>⏳ <strong style={{ color: "#fd7e14" }}>ETA:</strong> {progress.eta}</div>
-          {progress.remaining && (
-            <div>📉 <strong style={{ color: "#20c997" }}>Remaining:</strong> {progress.remaining}</div>
-          )}
+      <div className="log-section">
+        {logs.map((log, index) => (
+          <div key={index} className="log-line">
+            {log}
+          </div>
+        ))}
+      </div>
+
+      {downloadLink && (
+        <div className="download-link">
+          <a href={downloadLink} target="_blank" rel="noopener noreferrer">
+            ⬇️ Click here to download the video
+          </a>
         </div>
       )}
-
-      <pre
-        style={{
-          background: "#e9ecef",
-          padding: "15px",
-          marginTop: "20px",
-          borderRadius: "8px",
-          maxHeight: "300px",
-          overflowY: "auto",
-          color: "#343a40"
-        }}
-      >
-        {logs.join("\n")}
-      </pre>
     </div>
   );
 }
