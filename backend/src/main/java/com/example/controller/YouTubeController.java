@@ -1,19 +1,14 @@
-// ✅ YouTubeController.java (updated)
 package com.example.controller;
 
 import com.example.service.YouTubeService;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.core.io.Resource;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseEntity;
+import org.springframework.core.io.UrlResource;
+import org.springframework.http.*;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.file.StandardOpenOption;
+import java.nio.file.*;
 
 @RestController
 @RequestMapping("/api/youtube")
@@ -33,8 +28,8 @@ public class YouTubeController {
     @GetMapping("/download-file/{fileName}")
     public ResponseEntity<Resource> downloadFile(@PathVariable String fileName) {
         try {
-            Path filePath = Paths.get("D:/Movies").resolve(fileName).normalize();
-            Resource resource = new org.springframework.core.io.UrlResource(filePath.toUri());
+            Path filePath = Paths.get("downloads").resolve(fileName).normalize();
+            Resource resource = new UrlResource(filePath.toUri());
 
             if (resource.exists()) {
                 return ResponseEntity.ok()
