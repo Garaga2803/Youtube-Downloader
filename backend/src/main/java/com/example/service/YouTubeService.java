@@ -4,36 +4,21 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.*;
-import java.util.*;
+import java.util.UUID;
 import java.util.regex.*;
 
 @Service
 public class YouTubeService {
 
-    private final Map<String, String> qualityFormatMap = new HashMap<>();
-
-    public YouTubeService() {
-        qualityFormatMap.put("8k", "bestvideo[height<=4320]+bestaudio/best");
-        qualityFormatMap.put("4k", "bestvideo[height<=2160]+bestaudio/best");
-        qualityFormatMap.put("1440p", "bestvideo[height<=1440]+bestaudio/best");
-        qualityFormatMap.put("1080p", "bestvideo[height<=1080]+bestaudio/best");
-        qualityFormatMap.put("720p", "bestvideo[height<=720]+bestaudio/best");
-        qualityFormatMap.put("480p", "bestvideo[height<=480]+bestaudio/best");
-        qualityFormatMap.put("360p", "bestvideo[height<=360]+bestaudio/best");
-        qualityFormatMap.put("240p", "bestvideo[height<=240]+bestaudio/best");
-        qualityFormatMap.put("best", "best");
-    }
-
-    public void downloadWithLiveLogs(String url, String formatLabel, SseEmitter emitter) {
+    public void downloadWithLiveLogs(String url, String formatCode, SseEmitter emitter) {
         new Thread(() -> {
             String fileName = "video_" + UUID.randomUUID() + ".mp4";
             String outputPath = "downloads/" + fileName;
-            String format = qualityFormatMap.getOrDefault(formatLabel.toLowerCase(), "best");
 
             ProcessBuilder builder = new ProcessBuilder(
                     "yt-dlp",
-                    "-f", format,
-                  "--merge-output-format", "mp4",     
+                    "-f", formatCode,
+                    "--merge-output-format", "mp4",
                     "-o", outputPath,
                     "--newline",
                     url
