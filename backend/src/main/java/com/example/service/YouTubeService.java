@@ -4,9 +4,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import java.io.*;
-import java.util.HashMap;
-import java.util.Map;
-import java.util.UUID;
+import java.util.*;
 import java.util.regex.*;
 
 @Service
@@ -23,45 +21,44 @@ public class YouTubeService {
         qualityFormatMap.put("480p", "bestvideo[height<=480]+bestaudio/best");
         qualityFormatMap.put("360p", "bestvideo[height<=360]+bestaudio/best");
         qualityFormatMap.put("240p", "bestvideo[height<=240]+bestaudio/best");
-        qualityFormatMap.put("best", "best"); // fallback
+        qualityFormatMap.put("best", "best");
     }
 
-    public SseEmitter downloadVideoWithProgress(String url, String formatLabel) {
-        SseEmitter emitter = new SseEmitter(0L); // No timeout
+    public void downloadWithLiveLogs(String url, String formatLabel, SseEmitter emitter) {
         new Thread(() -> {
             String fileName = "video_" + UUID.randomUUID() + ".mp4";
-
-            // Use mapped format or fallback to "best"
+            String outputPath = "downloads/" + fileName;
             String format = qualityFormatMap.getOrDefault(formatLabel.toLowerCase(), "best");
 
             ProcessBuilder builder = new ProcessBuilder(
                     "yt-dlp",
                     "-f", format,
-                    "-o", "downloads/" + fileName,
+                    "-o", outputPath,
                     "--newline",
                     url
             );
-
             builder.redirectErrorStream(true);
 
             try {
                 Process process = builder.start();
                 BufferedReader reader = new BufferedReader(new InputStreamReader(process.getInputStream()));
                 String line;
-                Pattern progressPattern = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)% of ~?(\\d+\\.\\d+)?\\w* at ([\\d\\.\\w/]+) ETA ([\\d:\\.]+)");
+                Pattern pattern = Pattern.compile("\\[download\\]\\s+(\\d+\\.\\d+)% of ~?(\\d+\\.\\d+)?\\w* at ([\\d\\.\\w/]+) ETA ([\\d:\\.]+)");
 
                 while ((line = reader.readLine()) != null) {
                     System.out.println("yt-dlp: " + line);
 
-                    Matcher matcher = progressPattern.matcher(line);
+                    Matcher matcher = pattern.matcher(line);
                     if (matcher.find()) {
-                        String progress = matcher.group(1);
-                        String totalSize = matcher.group(2) != null ? matcher.group(2) : "";
+                        String percent = matcher.group(1);
+                        String totalMB = matcher.group(2) != null ? matcher.group(2) : "";
                         String speed = matcher.group(3);
                         String eta = matcher.group(4);
 
-                        String formatted = String.format("📥 %s%% downloaded (%s MB) at %s, ETA %s", progress, totalSize, speed, eta);
-                        emitter.send(SseEmitter.event().data(formatted));
+                        String progress = String.format("📥 %s%% downloaded (%s MB) at %s, ETA %s",
+                                percent, totalMB, speed, eta);
+
+                        emitter.send(SseEmitter.event().data(progress));
                     }
                 }
 
@@ -73,9 +70,7 @@ public class YouTubeService {
                 }
 
                 emitter.complete();
-
             } catch (IOException | InterruptedException e) {
-                e.printStackTrace();
                 try {
                     emitter.send(SseEmitter.event().data("❌ Error occurred: " + e.getMessage()));
                 } catch (IOException ex) {
@@ -84,7 +79,5 @@ public class YouTubeService {
                 emitter.completeWithError(e);
             }
         }).start();
-
-        return emitter;
     }
 }
