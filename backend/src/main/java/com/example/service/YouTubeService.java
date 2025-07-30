@@ -33,6 +33,7 @@ public class YouTubeService {
             ProcessBuilder builder = new ProcessBuilder(
                     "yt-dlp",
                     "-f", format,
+                  "--merge-output-format", "mp4",     
                     "-o", outputPath,
                     "--newline",
                     url
