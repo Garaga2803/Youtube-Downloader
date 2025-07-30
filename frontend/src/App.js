@@ -14,9 +14,10 @@ function App() {
     setTotalSizeMB(null);
     setDownloading(true);
 
-    const eventSource = new EventSource(
-      `http://localhost:8080/api/youtube/download/stream?url=${encodeURIComponent(url)}&format=${quality}&t=${Date.now()}`
-    );
+   const eventSource = new EventSource(
+  `https://youtube-downloader-nhfx.onrender.com/api/youtube/download/stream?url=${encodeURIComponent(url)}&format=${quality}&t=${Date.now()}`
+);
+
 
     eventSource.onmessage = (e) => {
       const message = e.data;
